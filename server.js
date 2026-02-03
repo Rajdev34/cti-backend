@@ -1,11 +1,9 @@
-
-
-
 // ============== CTI SERVER - Node.js Backend ==============
 const express = require('express');
 const http = require('http');
 const WebSocket = require('ws');
 const cors = require('cors');
+require('dotenv').config();
 
 const app = express();
 const server = http.createServer(app);
@@ -74,7 +72,57 @@ wss.on('connection', (ws, req) => {
 // ============== HTTP ENDPOINTS (For Postman) ==============
 
 // 1. Trigger a popup directly
+
+async function createFreshdeskTicket(body) {
+  const url = "https://iremboassist.freshdesk.com/api/v2/tickets";
+
+  const payload = {
+    email: body.caller_email || "caller@example.com",
+    subject: `Testing Jitendra Incoming Call - ${body.requester_phone}`,
+    description: `Call from ${body.requester_phone}`,
+    status: 2,
+    priority: 1,
+    group_id: 47000660006,
+    responder_id: 47094053714,
+    custom_fields: {
+      cf_institution: "IremboPay",
+      cf_tags: "Voice of Customer",
+      cf_issue_description626460: "Drop call before providing information",
+      cf_customer_type: "Citizen",
+      cf_language: "English",
+      cf_tagged_by: "Aline Umutoniwase",
+      cf_service341113: "RPPA_RRA_TD | Tender Document Fee",
+      cf_tag311712: "Query"
+    }
+  };
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Basic ${process.env.credentialheader}`
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      console.error("Freshdesk Error:", response.status, result);
+      return;
+    }
+
+    console.log("Ticket Created Successfully:");
+    console.log(result);
+
+  } catch (error) {
+    console.error("Request Failed:", error);
+  }
+}
+
 app.post('/api/trigger-popup', (req, res) => {
+  const mybody = req.body;
   const { requester_phone, responder_email, call_reference_id } = req.body;
   
   if (!requester_phone || !responder_email || !call_reference_id) {
@@ -104,6 +152,8 @@ app.post('/api/trigger-popup', (req, res) => {
   
   // Send to all connected Freshdesk clients
   const clientsCount = broadcastToFreshdesk(callData);
+
+  createFreshdeskTicket(mybody);
   
   res.json({
     success: true,
