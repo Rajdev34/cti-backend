@@ -234,7 +234,52 @@ app.post("/api/trigger-popup", async (req, res) => {
   }
 });
 
+app.post("/api/update-call-duration", async (req, res) => {
+  try {
+    const { email, callerName, callId, callDuration } = req.body;
 
+    // Basic validation
+    if (!email || !callId || callDuration === undefined) {
+      return res.status(400).json({
+        success: false,
+        message: "email, callId and callDuration are required",
+      });
+    }
+
+    // Find and update
+    const updatedCall = await Call.findOneAndUpdate(
+      {
+        callId: callId,
+        responderEmail: email,
+      },
+      {
+        callDuration: callDuration,
+        callName: callerName, // optional update
+      },
+      { new: true }
+    );
+
+    if (!updatedCall) {
+      return res.status(404).json({
+        success: false,
+        message: "Call not found",
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: "Call duration updated successfully",
+      data: updatedCall,
+    });
+  } catch (error) {
+    console.error("Error updating call duration:", error);
+
+    res.status(500).json({
+      success: false,
+      message: "Server error",
+    });
+  }
+});
 
 // 2. Simulate a complete call
 app.post('/api/simulate-call', (req, res) => {
