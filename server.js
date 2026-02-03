@@ -285,10 +285,10 @@ app.post("/api/trigger-popup", async (req, res) => {
         name: caller.name || "Unknown",
         source: "client",
         timestamp: timestamp || new Date().toISOString(),
+        queue,
+        language,
       },
       extension,
-      queue,
-      language,
     };
 
     const savedCall = await Call.create({
