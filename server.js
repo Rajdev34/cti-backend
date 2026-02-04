@@ -129,7 +129,6 @@ async function createFreshdeskTicket(body) {
     }
 
     console.log("Ticket Created Successfully:");
-    console.log(result);
   } catch (error) {
     console.error("Request Failed:", error);
   }
@@ -311,6 +310,21 @@ app.post("/api/trigger-popup", async (req, res) => {
       `📢 Triggering popup for: ${caller.number} (${caller.name || "Unknown"})`,
     );
 
+
+
+    // const savedCall = await Call.create({
+    //   callId: callId,
+    //   callerPhone: caller?.number,
+    //   responderEmail: email,
+    //   callName: caller?.name || "Unknown",
+    //   callDuration: 0,
+    //   source: "client",
+    //   startedAt: timestamp ? new Date(timestamp) : new Date(),
+    // });
+
+
+    const tickets = await fetchTicketsByPhone(caller?.number);
+
     // 🔹 Payload for Freshdesk popup
     const callData = {
       event: "incoming_call",
@@ -324,22 +338,12 @@ app.post("/api/trigger-popup", async (req, res) => {
         timestamp: timestamp || new Date().toISOString(),
         queue,
         language,
+        tickets:tickets,
       },
       extension,
     };
-
-    // const savedCall = await Call.create({
-    //   callId: callId,
-    //   callerPhone: caller?.number,
-    //   responderEmail: email,
-    //   callName: caller?.name || "Unknown",
-    //   callDuration: 0,
-    //   source: "client",
-    //   startedAt: timestamp ? new Date(timestamp) : new Date(),
-    // });
-
     const clientsCount = broadcastToFreshdesk(callData);
-    const tickets = await fetchTicketsByPhone(caller?.number);
+
     createFreshdeskTicket(body);
 
     res.json({
@@ -349,7 +353,6 @@ app.post("/api/trigger-popup", async (req, res) => {
       call_saved: true,
       // call_db_id: savedCall._id,
       data: callData,
-      tickets: tickets,
     });
   } catch (error) {
     console.error("❌ Error saving call:", error);
