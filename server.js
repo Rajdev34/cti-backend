@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
 const Call = require("./callSchema");
+const { log } = require("console");
 
 const app = express();
 const server = http.createServer(app);
@@ -84,6 +85,9 @@ wss.on("connection", (ws, req) => {
 
 // 1. Trigger a popup directly
 
+const DOMAIN = "iremboassist.freshdesk.com";
+const auth = process.env.credentialheader;
+
 async function createFreshdeskTicket(body) {
   const url = "https://iremboassist.freshdesk.com/api/v2/tickets";
 
@@ -112,7 +116,7 @@ async function createFreshdeskTicket(body) {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Basic ${process.env.credentialheader}`,
+        Authorization: `Basic ${auth}`,
       },
       body: JSON.stringify(payload),
     });
@@ -128,6 +132,38 @@ async function createFreshdeskTicket(body) {
     console.log(result);
   } catch (error) {
     console.error("Request Failed:", error);
+  }
+}
+
+async function fetchTicketsByPhone(phone) {
+  try {
+    // Step 1 → Search Contact
+    const contactRes = await fetch(
+      `https://${DOMAIN}/api/v2/search/contacts?query="phone:${phone}"`,
+      { headers: { Authorization: `Basic ${auth}` } },
+    );
+
+    const contactData = await contactRes.json();
+    // console.log(contactData, "contactData");
+
+    if (!contactData.results || !contactData.results.length) {
+      return [];
+    }
+   
+    const contactid=contactData.results[0].id;
+
+    // Step 2 → Get Tickets
+    const ticketRes = await fetch(
+      `https://${DOMAIN}/api/v2/tickets?requester_id=${contactid}`,
+      { headers: { Authorization: `Basic ${auth}` } },
+    );
+
+    const ticketData = await ticketRes.json();
+
+    return ticketData || [];
+  } catch (error) {
+    console.error("Fetch ticket error:", error.message);
+    throw error; // optional but recommended
   }
 }
 
@@ -277,7 +313,7 @@ app.post("/api/trigger-popup", async (req, res) => {
 
     // 🔹 Payload for Freshdesk popup
     const callData = {
-      event: 'incoming_call',
+      event: "incoming_call",
       direction: direction || "inbound",
       caller: {
         callId: callId,
@@ -292,17 +328,18 @@ app.post("/api/trigger-popup", async (req, res) => {
       extension,
     };
 
-    const savedCall = await Call.create({
-      callId: callId,
-      callerPhone: caller?.number,
-      responderEmail: email,
-      callName: caller?.name || "Unknown",
-      callDuration: 0,
-      source: "client",
-      startedAt: timestamp ? new Date(timestamp) : new Date(),
-    });
+    // const savedCall = await Call.create({
+    //   callId: callId,
+    //   callerPhone: caller?.number,
+    //   responderEmail: email,
+    //   callName: caller?.name || "Unknown",
+    //   callDuration: 0,
+    //   source: "client",
+    //   startedAt: timestamp ? new Date(timestamp) : new Date(),
+    // });
 
     const clientsCount = broadcastToFreshdesk(callData);
+    const tickets = await fetchTicketsByPhone(caller?.number);
     createFreshdeskTicket(body);
 
     res.json({
@@ -310,8 +347,9 @@ app.post("/api/trigger-popup", async (req, res) => {
       message: "Popup triggered successfully",
       clients: clientsCount,
       call_saved: true,
-      call_db_id: savedCall._id,
+      // call_db_id: savedCall._id,
       data: callData,
+      tickets: tickets,
     });
   } catch (error) {
     console.error("❌ Error saving call:", error);
