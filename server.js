@@ -395,6 +395,7 @@ app.post("/api/update-call-duration", async (req, res) => {
       caller: {
         callId: callId,
         email: email || "",
+        callDuration: callDuration,
       },
     };
   const clientsCount = broadcastToFreshdesk(callData);
