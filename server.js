@@ -19,7 +19,7 @@ const wss = new WebSocket.Server({
 app.use(cors());
 app.use(express.json());
 
-console.log(process.env.DATABASE_URL, "000000");
+
 mongoose
   .connect(process.env.DATABASE_URL, {})
   .then(() => console.log("DB connected"))
@@ -27,7 +27,6 @@ mongoose
 
 // Store connected Freshdesk clients
 const freshdeskClients = new Set();
-// Store call data
 let activeCalls = new Map();
 
 // ============== WEBSOCKET HANDLING ==============
@@ -136,22 +135,17 @@ async function createFreshdeskTicket(body) {
 
 async function fetchTicketsByPhone(phone) {
   try {
-    // Step 1 → Search Contact
+
     const contactRes = await fetch(
       `https://${DOMAIN}/api/v2/search/contacts?query="phone:${phone}"`,
       { headers: { Authorization: `Basic ${auth}` } },
     );
 
     const contactData = await contactRes.json();
-    // console.log(contactData, "contactData");
-
-    if (!contactData.results || !contactData.results.length) {
-      return [];
-    }
+    if (!contactData.results || !contactData.results.length) { return []; }
    
     const contactid=contactData.results[0].id;
 
-    // Step 2 → Get Tickets
     const ticketRes = await fetch(
       `https://${DOMAIN}/api/v2/tickets?requester_id=${contactid}`,
       { headers: { Authorization: `Basic ${auth}` } },
@@ -395,10 +389,21 @@ app.post("/api/update-call-duration", async (req, res) => {
       });
     }
 
+
+     const callData = {
+      event: "updating_call",
+      caller: {
+        callId: callId,
+        email: email || "",
+      },
+    };
+  const clientsCount = broadcastToFreshdesk(callData);
+
     res.status(200).json({
       success: true,
       message: "Call duration updated successfully",
       data: updatedCall,
+      clients: clientsCount,
     });
   } catch (error) {
     console.error("Error updating call duration:", error);
