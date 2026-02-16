@@ -385,7 +385,7 @@ app.post("/api/update-call-duration", async (req, res) => {
     if (!updatedCall) {
       return res.status(404).json({
         success: false,
-        message: "Call not found",
+        message: "Call not found ",
       });
     }
 
