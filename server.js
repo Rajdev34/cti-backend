@@ -6,6 +6,7 @@ const mongoose = require("mongoose");
 const cors = require("cors");
 require("dotenv").config();
 const Call = require("./callSchema");
+const Extension = require("./extensionSchema");
 const { log } = require("console");
 
 const app = express();
@@ -300,6 +301,34 @@ app.post("/api/trigger-popup", async (req, res) => {
       });
     }
 
+
+    // 🔹 Get today's time range
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 🔹 Find today's extension
+    const extensionRecord = await Extension.findOne({
+      extension,
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    });
+
+    if (!extensionRecord) {
+      return res.status(404).json({
+        success: false,
+        message: "No active extension found for today",
+      });
+    }
+
+    const ExtensionEmail = extensionRecord.email;
+
+
+
     console.log(
       `📢 Triggering popup for: ${caller.number} (${caller.name || "Unknown"})`,
     );
@@ -328,7 +357,7 @@ app.post("/api/trigger-popup", async (req, res) => {
         number: caller.number,
         name: caller.name || "Unknown",
         source: "client",
-        email: email || "",
+        email: ExtensionEmail || "",
         timestamp: timestamp || new Date().toISOString(),
         queue,
         language,
@@ -356,6 +385,43 @@ app.post("/api/trigger-popup", async (req, res) => {
     });
   }
 });
+
+
+app.get("/api/extension-emails", async (req, res) => {
+  try {
+    // 🔹 Get today's start time (00:00:00)
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    // 🔹 Get today's end time (23:59:59)
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    const extensions = await Extension.find({
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    })
+      .select("extension email createdAt updatedAt")
+      .sort({ createdAt: -1 });
+
+    res.status(200).json({
+      success: true,
+      count: extensions.length,
+      data: extensions,
+    });
+
+  } catch (error) {
+    console.error("❌ Error fetching today's extensions:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch today's extension emails",
+    });
+  }
+});
+
+
 
 app.post("/api/update-call-duration", async (req, res) => {
   try {
@@ -415,6 +481,68 @@ app.post("/api/update-call-duration", async (req, res) => {
     });
   }
 });
+
+
+
+app.post("/api/extensions", async (req, res) => {
+  try {
+    const { email, extension } = req.body;
+
+    if (!email || !extension) {
+      return res.status(400).json({
+        success: false,
+        message: "Email and extension are required",
+      });
+    }
+
+    // 🔹 Get today's start & end time
+    const startOfDay = new Date();
+    startOfDay.setHours(0, 0, 0, 0);
+
+    const endOfDay = new Date();
+    endOfDay.setHours(23, 59, 59, 999);
+
+    // 🔹 Check if extension already created today
+    const existingToday = await Extension.findOne({
+      extension,
+      createdAt: {
+        $gte: startOfDay,
+        $lte: endOfDay,
+      },
+    });
+
+    if (existingToday) {
+      return res.status(409).json({
+        success: false,
+        message: "This extension is already used today, Use another Extension",
+        createdAt: existingToday.createdAt,
+      });
+    }
+
+    // 🔹 Save new extension
+    const newExtension = await Extension.create({
+      email,
+      extension,
+    });
+
+    res.status(201).json({
+      success: true,
+      message: "Extension saved successfully",
+      data: newExtension,
+    });
+
+  } catch (error) {
+    console.error("❌ Error saving extension:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to save extension",
+    });
+  }
+});
+
+
+
+
 
 // 2. Simulate a complete call
 app.post("/api/simulate-call", (req, res) => {
